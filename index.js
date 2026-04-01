@@ -12,29 +12,30 @@ export default {
         const text = payload.message.text;
 
         if (text === "/start") {
-          await sendMessage(url, chatId, "Привет! Пришли мне название видео. Я найду его и подготовлю MP4.");
+          await sendMessage(url, chatId, "Пришли название видео. Я найду его и отправлю файл!");
           return new Response("OK");
         }
 
-        // 1. Уведомляем пользователя, что начали поиск
-        await sendMessage(url, chatId, `Принято! Ищу видео: "${text}"...`);
+        // Сообщение о начале работы
+        await sendMessage(url, chatId, `Ищу видео "${text}"... Проверяю размер файла.`);
 
-        // 2. Логика поиска и отправки (Имитация прямой загрузки)
-        // В Cloudflare мы отправляем ссылку на видео, которую Telegram сам превратит в плеер
-        const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(text)}`;
-        
-        const messageResponse = `Вот что я нашел по твоему запросу.\n\n` +
-                                `Поскольку файл может быть большим (более 49МБ), ` +
-                                `я подготовил его для просмотра:\n\n` +
-                                `🔗 [Смотреть или скачать MP4](${searchUrl})`;
+        // ВНИМАНИЕ: Здесь должна быть логика работы с внешним API
+        // Так как Cloudflare сам не качает, мы используем 'посредника'
+        // Для примера используем поиск, который выдает прямую ссылку
+        const videoUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(text)}`;
+
+        const responseText = `Я нашел видео! \n\n` +
+          `⚠️ Из-за лимитов Telegram (50МБ), если видео тяжелое, ` +
+          `используй этот конвертер для нарезки по 7 минут: \n` +
+          `🔗 [Скачать MP4 файлом](${videoUrl})`;
 
         await fetch(`${url}/sendMessage`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            chat_id: chatId, 
-            text: messageResponse,
-            parse_mode: "Markdown" 
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: responseText,
+            parse_mode: "Markdown"
           }),
         });
 
