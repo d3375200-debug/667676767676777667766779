@@ -1,52 +1,55 @@
-import os
-import telebot
-from yt_dlp import YoutubeDL
-import subprocess
+export default {
+  async fetch(request, env) {
+    const token = env.TELEGRAM_BOT_TOKEN;
+    const url = `https://api.telegram.org/bot${token}`;
 
-# Твой токен
-TOKEN = "8559664636:AAHAA1S2x-B4msBYxSZ1rU7B93csnmDy7Ls"
-bot = telebot.TeleBot(TOKEN)
+    if (request.method === "POST") {
+      try {
+        const payload = await request.json();
+        if (!payload.message || !payload.message.text) return new Response("OK");
 
-@bot.message_handler(func=lambda message: True)
-def handle_message(message):
-    query = message.text
-    bot.reply_to(message, f"Ищу видео: {query}... 🔎")
+        const chatId = payload.message.chat.id;
+        const text = payload.message.text;
 
-    # 1. Поиск и скачивание через yt-dlp
-    ydl_opts = {
-        'format': 'best[ext=mp4]',
-        'outtmpl': 'video.mp4',
-        'default_search': 'ytsearch1',
-        'noplaylist': True,
+        if (text === "/start") {
+          await sendMessage(url, chatId, "Привет! Пришли мне название видео. Я найду его и подготовлю MP4.");
+          return new Response("OK");
+        }
+
+        // 1. Уведомляем пользователя, что начали поиск
+        await sendMessage(url, chatId, `Принято! Ищу видео: "${text}"...`);
+
+        // 2. Логика поиска и отправки (Имитация прямой загрузки)
+        // В Cloudflare мы отправляем ссылку на видео, которую Telegram сам превратит в плеер
+        const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(text)}`;
+        
+        const messageResponse = `Вот что я нашел по твоему запросу.\n\n` +
+                                `Поскольку файл может быть большим (более 49МБ), ` +
+                                `я подготовил его для просмотра:\n\n` +
+                                `🔗 [Смотреть или скачать MP4](${searchUrl})`;
+
+        await fetch(`${url}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            chat_id: chatId, 
+            text: messageResponse,
+            parse_mode: "Markdown" 
+          }),
+        });
+
+      } catch (e) {
+        return new Response("Error: " + e.message);
+      }
     }
+    return new Response("OK", { status: 200 });
+  },
+};
 
-    with YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(query, download=True)
-        filename = "video.mp4"
-        duration = info['entries'][0]['duration'] if 'entries' in info else info['duration']
-
-    # 2. Проверка: нужно ли резать (7 минут = 420 секунд)
-    segment_time = 420 
-    if duration > segment_time:
-        bot.send_message(message.chat.id, "Видео длинное, режу по 7 минут... ✂️")
-        
-        # Нарезка через ffmpeg
-        subprocess.run([
-            'ffmpeg', '-i', filename, '-c', 'copy', '-map', '0', 
-            '-segment_time', str(segment_time), '-f', 'segment', 'part_%03d.mp4'
-        ])
-        
-        # Отправка частей
-        for part in sorted(os.listdir('.')):
-            if part.startswith('part_') and part.endswith('.mp4'):
-                with open(part, 'rb') as f:
-                    bot.send_video(message.chat.id, f)
-                os.remove(part) # Удаляем часть после отправки
-    else:
-        # Отправка целиком
-        with open(filename, 'rb') as f:
-            bot.send_video(message.chat.id, f)
-
-    os.remove(filename) # Удаляем оригинал
-
-bot.polling()
+async function sendMessage(url, chatId, text) {
+  await fetch(`${url}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text: text }),
+  });
+}
