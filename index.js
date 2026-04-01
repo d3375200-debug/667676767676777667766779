@@ -1,56 +1,51 @@
-export default {
-  async fetch(request, env) {
-    const token = env.TELEGRAM_BOT_TOKEN;
-    const url = `https://api.telegram.org/bot${token}`;
+const { Telegraf } = require('telegraf');
+const { exec } = require('yt-dlp-exec');
+const ffmpeg = require('fluent-ffmpeg');
+const fs = require('fs');
 
-    if (request.method === "POST") {
-      try {
-        const payload = await request.json();
-        if (!payload.message || !payload.message.text) return new Response("OK");
+const bot = new Telegraf("8559664636:AAHAA1S2x-B4msBYxSZ1rU7B93csnmDy7Ls");
 
-        const chatId = payload.message.chat.id;
-        const text = payload.message.text;
+bot.on('text', async (ctx) => {
+    const query = ctx.message.text;
+    if (query === '/start') return ctx.reply('Пришли название видео!');
 
-        if (text === "/start") {
-          await sendMessage(url, chatId, "Пришли название видео. Я найду его и отправлю файл!");
-          return new Response("OK");
-        }
+    ctx.reply(`Ищу и скачиваю: ${query}...`);
 
-        // Сообщение о начале работы
-        await sendMessage(url, chatId, `Ищу видео "${text}"... Проверяю размер файла.`);
-
-        // ВНИМАНИЕ: Здесь должна быть логика работы с внешним API
-        // Так как Cloudflare сам не качает, мы используем 'посредника'
-        // Для примера используем поиск, который выдает прямую ссылку
-        const videoUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(text)}`;
-
-        const responseText = `Я нашел видео! \n\n` +
-          `⚠️ Из-за лимитов Telegram (50МБ), если видео тяжелое, ` +
-          `используй этот конвертер для нарезки по 7 минут: \n` +
-          `🔗 [Скачать MP4 файлом](${videoUrl})`;
-
-        await fetch(`${url}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: responseText,
-            parse_mode: "Markdown"
-          }),
+    try {
+        // 1. Качаем видео
+        await exec(query, {
+            output: 'video.mp4',
+            format: 'best[ext=mp4]',
+            maxFilesize: '500M'
         });
 
-      } catch (e) {
-        return new Response("Error: " + e.message);
-      }
-    }
-    return new Response("OK", { status: 200 });
-  },
-};
+        const stats = fs.statSync('video.mp4');
+        const fileSizeInBytes = stats.size;
+        const fileSizeInMegabytes = fileSizeInBytes / (1024 * 1024);
 
-async function sendMessage(url, chatId, text) {
-  await fetch(`${url}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text: text }),
-  });
-}
+        if (fileSizeInMegabytes > 49) {
+            ctx.reply('Файл большой, режу по 7 минут...');
+            
+            // 2. Режем через FFmpeg
+            ffmpeg('video.mp4')
+                .outputOptions(['-f segment', '-segment_time 420', '-c copy'])
+                .output('part_%03d.mp4')
+                .on('end', async () => {
+                    const files = fs.readdirSync('.').filter(f => f.startsWith('part_'));
+                    for (const file of files) {
+                        await ctx.replyWithDocument({ source: file });
+                        fs.unlinkSync(file);
+                    }
+                    fs.unlinkSync('video.mp4');
+                })
+                .run();
+        } else {
+            await ctx.replyWithDocument({ source: 'video.mp4' });
+            fs.unlinkSync('video.mp4');
+        }
+    } catch (e) {
+        ctx.reply('Ошибка: ' + e.message);
+    }
+});
+
+bot.launch();
