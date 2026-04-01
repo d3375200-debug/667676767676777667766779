@@ -1,27 +1,30 @@
 import sys
 import os
 
-# Помогаем Cloudflare найти установленные библиотеки
-site_packages = os.path.join(os.getcwd(), ".python_packages/lib/site-packages")
-if site_packages not in sys.path:
-    sys.path.append(site_packages)
+# Автоматический поиск установленных библиотек
+for path in [
+    os.path.join(os.getcwd(), ".python_packages/lib/site-packages"),
+    os.path.join(os.getcwd(), "vendor"),
+    "/lib/python3.13/site-packages"
+]:
+    if os.path.exists(path) and path not in sys.path:
+        sys.path.append(path)
 
-import telebot
+try:
+    import telebot
+except ImportError:
+    # Если всё равно не видит, выведем в лог список путей для отладки
+    raise ImportError(f"Telebot не найден. Пути: {sys.path}")
+
 from telebot import types
 
-# Твой токен подтягивается из настроек wrangler.toml
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 bot = telebot.TeleBot(TOKEN)
 
-# Пример простого обработчика
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.reply_to(message, "Привет! Я запущен на Cloudflare Workers!")
+    bot.reply_to(message, "Бот наконец-то работает!")
 
-# Это обязательная функция для работы в облаке
 def fetch(request):
-    return bot.process_new_updates([telebot.types.Update.de_json(request.text())])
-
-# Если ты используешь стандартный запуск, оставь это для проверки локально
-if __name__ == "__main__":
-    bot.polling(none_stop=True)
+    # Метод для обработки запросов от Cloudflare
+    return bot.process_new_updates([types.Update.de_json(request.text())])
