@@ -1,6 +1,5 @@
-main = "main.py"
-compatibility_date = "2024-04-01"
-compatibility_flags = ["python_workers"]
+main = "index.js"
+compatibility_date = "2026-04-01"
 
 [vars]
 TELEGRAM_BOT_TOKEN = "8559664636:AAHAA1S2x-B4msBYxSZ1rU7B93csnmDy7Ls"
