@@ -1,6 +1,9 @@
 name = "my-bot"
-main = "src/index.js"
+main = "Main 21.py"
 compatibility_date = "2026-04-01"
 
 [vars]
 TELEGRAM_BOT_TOKEN = "8559664636:AAHAA1S2x-B4msBYxSZ1rU7B93csnmDy7Ls"
+
+[python]
+# Это говорит Cloudflare, что бот на Python
