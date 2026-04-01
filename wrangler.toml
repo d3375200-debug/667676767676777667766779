@@ -1,5 +1,5 @@
 name = "my-bot"
-main = "Main 21.py"
+main = "main.py"
 compatibility_date = "2026-04-01"
 compatibility_flags = ["python_workers"]
 
